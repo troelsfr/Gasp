@@ -1,12 +1,8 @@
 Gasp
 ====
+Copyright 2012 (c) Troels F. Roennow, ETH Zurich
 
-Gasp is a bridge between Doxygen and Sphinx allowing import of Doxygen doc in Sphinx.Gasp
-====
-
-Gasp is a Sphinx extension which loads Doxygen generated XML and
-provides directives for including extracted docs into the reStructured
-text. 
+Gasp is a bridge between Doxygen and Sphinx allowing import of Doxygen doc in Sphinx. Gasp loads Doxygen generated XML and provides directives for including extracted docs into the reStructured text. 
 
 
 How does Gasp differ from Breathe?

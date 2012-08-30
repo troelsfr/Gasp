@@ -160,12 +160,31 @@ class DoxygenDocumentation:
             n.attributes.update(attributes)
 
     def _template_param(self, child):
-        attr = {}
+        attr = {"description": ""}
+        ## Fixing parameters that has been 
+        ## wrongly parsed by doxygen
         for c in child.childNodes:
             name = c.nodeName.strip()
+            if "#" in name: continue
             val = self._get_text(c)
-            if not "#" in name:
+            
+            co = {'<':0, '(': 0, '[': 0, '{':0}
+            rc = {'>':'<', ')':'(', ']':'[', '}':'{'}
+            i,j = 0, -1
+            for s in val: 
+                if s ==" " and sum([k for k in co.itervalues()]) == 0:                             
+                    j = i
+                if s in co: co[s]+=1
+                if s in rc: co[rc[s]]-=1
+                i+=1
+            if j != -1:
+                t,mem = val[0:j], val[j+1:]
+                attr["type"] = t
+                attr["declname"] = mem
+                attr["defname"] = mem
+            else:
                 attr[name] = val
+            
         return attr
 
     def _parse_template_params(self, subtree, node):
@@ -178,11 +197,84 @@ class DoxygenDocumentation:
         
         node.attributes['template_parameters'] += lst
         
+    def _parse_memberdef(self, subtree):
+        parse_children = False
+        attributes = dict([(q, self._get_text(w)) for q,w in dict(subtree.attributes).iteritems()])
+        attributes["parameters"] = []
+        attributes['template_parameters'] = []
+        attributes["is_type"] = ("typedef" == attributes["kind"])
+        attributes["is_enum"] = ("enum" == attributes["kind"])
+        attributes['is_member'] = True 
+        attributes['is_namespace'] = False
+        attributes['is_class'] = ("class" == attributes["kind"])
+#        if attributes['id']=='classalps_1_1numeric_1_1matrix_1a33033173ca671a1c617c210a91dd2bea':
+#            print "X", kind, attributes["kind"]
+
+
+        path = None
+        for c in subtree.childNodes:
+            n2 = c.nodeName.strip()
+            if n2.startswith("#"): continue
+            txt = self._get_text(c).strip() 
+            attributes[n2] = txt ## TODO: add support for references
+            if n2 == "definition": 
+                t = attributes["type"]
+
+                co = {'<':0, '(': 0, '[': 0, '{':0}
+                rc = {'>':'<', ')':'(', ']':'[', '}':'{'}
+                i,j = 0, -1
+                for s in txt: 
+                    if s ==" " and sum([k for k in co.itervalues()]) == 0:                             
+                        j = i
+                    if s in co: co[s]+=1
+                    if s in rc: co[rc[s]]-=1
+                    i+=1
+                if j == -1:
+                    t, mem = "", txt
+                else:
+                    t,mem = txt[0:j], txt[j+1:]
+#                    t, mem = txt.rsplit(" ",1) if " " in txt else ("", txt)
+                if t == "": t = "void"
+                path = self.scope_to_path(mem)
+                attributes["fulltype"] = t
+            elif n2=="location":
+                fatt = dict([(q, self._get_text(w)) for q,w in dict(c.attributes).iteritems()])                
+                attributes.update(fatt)
+            elif n2=="param": ## TODO: add support for tparam
+                add = {}
+                for c2 in c.childNodes:
+                    nn = c2.nodeName.strip()
+                    val = self._get_text(c2) ## TODO: add support for references
+                    add[nn] = val
+                attributes["parameters"].append(add)
+            elif n2 =="enumvalue":
+                if path is None:
+                    if "name" in attributes:
+                        if not self._current_compound is None:
+                            path = self._current_compound+"/"+attributes["name"]
+                if not path is None:
+                    self._parse_enumvalue(c,path)
+                else:
+                    raise BaseException("Could not determine path")
+
+        if path is None:
+            if "name" in attributes:
+                if not self._current_compound is None:
+                    path = self._current_compound+"/"+attributes["name"]
+            else:
+                raise BaseException("Variable with no name or path in %s"%self._loading_file)
+#            print "Memberdef of ", path
+        nodes = self.docs.create(path)
+#            print [str(x) for x in nodes]
+        for n in nodes:
+            n.attributes.update(attributes)
+
 
     def _parse_compound_class(self, subtree, kind):
         name = subtree.nodeName.strip()
         if name == "compoundname":
-            path = self.scope_to_path(self._get_text(subtree))
+            scope = self._get_text(subtree)
+            path = self.scope_to_path(scope)
             node = self.docs.get_or_create(path)[0]
             node.attributes['is_member'] = False
             node.attributes['is_namespace'] = False
@@ -191,91 +283,26 @@ class DoxygenDocumentation:
             node.attributes['doxygen_file'] = self._loading_file
             node.attributes['parameters'] = []
             node.attributes['template_parameters'] = []
+            node.attributes["path"] = path            
+            node.attributes["name"] = path.rsplit("/",1)[1] if "/" in path else path
+            node.attributes["definition"] = "%s %s" % (kind, scope)
 
             self._current_compound = path
             self._compound_stack.append(node)
 
-        if name == "templateparamlist":
+        elif name == "templateparamlist":
             self._parse_template_params(subtree, self._compound_stack[-1])
+            n = self._compound_stack[-1]
+            print n.attributes["path"]
+            print [x for x in n.attributes["template_parameters"]]
+            n.attributes["template_argstring"] = ", ".join([ "%s %s" % (x["type"],x["declname"]) for x in n.attributes["template_parameters"]])
+            n.attributes["definition"] = "template< %s > %s" %(n.attributes["template_argstring"], n.attributes["definition"])
 
-        if name == "sectiondef":
+        elif name == "memberdef":
+           self._parse_memberdef(subtree)
+        else:
             for c in subtree.childNodes:
                 self._parse_compound_class(c,kind)
-
-        if name == "memberdef":
-
-            parse_children = False
-            attributes = dict([(q, self._get_text(w)) for q,w in dict(subtree.attributes).iteritems()])
-            attributes["parameters"] = []
-            attributes['template_parameters'] = []
-            attributes["is_type"] = ("typedef" == attributes["kind"])
-            attributes["is_enum"] = ("enum" == attributes["kind"])
-            attributes['is_member'] = True 
-            attributes['is_namespace'] = False
-            attributes['is_class'] = ("class" == attributes["kind"])
-            if attributes['id']=='classalps_1_1numeric_1_1matrix_1a33033173ca671a1c617c210a91dd2bea':
-                print "X", kind, attributes["kind"]
-
-
-            path = None
-            for c in subtree.childNodes:
-                n2 = c.nodeName.strip()
-                if n2.startswith("#"): continue
-                txt = self._get_text(c).strip() 
-                attributes[n2] = txt ## TODO: add support for references
-                if n2 == "definition": 
-                    t = attributes["type"]
-
-                    co = {'<':0, '(': 0, '[': 0, '{':0}
-                    rc = {'>':'<', ')':'(', ']':'[', '}':'{'}
-                    i,j = 0, -1
-                    for s in txt: 
-                        if s ==" " and sum([k for k in co.itervalues()]) == 0:                             
-                            j = i
-                        if s in co: co[s]+=1
-                        if s in rc: co[rc[s]]-=1
-                        i+=1
-                    if j == -1:
-                        t, mem = "", txt
-                    else:
-                        t,mem = txt[0:j], txt[j+1:]
-#                    t, mem = txt.rsplit(" ",1) if " " in txt else ("", txt)
-                    if t == "": t = "void"
-                    path = self.scope_to_path(mem)
-                    attributes["fulltype"] = t
-                elif n2=="location":
-                    fatt = dict([(q, self._get_text(w)) for q,w in dict(c.attributes).iteritems()])                
-                    attributes.update(fatt)
-                elif n2=="param": ## TODO: add support for tparam
-                    add = {}
-                    for c2 in c.childNodes:
-                        nn = c2.nodeName.strip()
-                        val = self._get_text(c2) ## TODO: add support for references
-                        add[nn] = val
-                    attributes["parameters"].append(add)
-                elif n2 =="enumvalue":
-                    if path is None:
-                        if "name" in attributes:
-                            if not self._current_compound is None:
-                                path = self._current_compound+"/"+attributes["name"]
-                    if not path is None:
-                        self._parse_enumvalue(c,path)
-                    else:
-                        raise BaseException("Could not determine path")
-
-            if path is None:
-                if "name" in attributes:
-                    if not self._current_compound is None:
-                        path = self._current_compound+"/"+attributes["name"]
-                else:
-                    raise BaseException("Variable with no name or path in %s"%self._loading_file)
-#            print "Memberdef of ", path
-            nodes = self.docs.create(path)
-#            print [str(x) for x in nodes]
-            for n in nodes:
-                n.attributes.update(attributes)
-
-
 
 
     def _parse_compound(self,subtree):
