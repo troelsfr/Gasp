@@ -1,15 +1,6 @@
-{# warning(len(objects)==2,"Too many objects" ) #}
-{% for class in objects %}
-{% if class.is_class %}
-<h1>X: {{ class.definition }}</h1>
-{% for o in class.children %}
-{% if o.briefdescription or all %}
-<h3>Def: {{ o.definition }}</h3>
-<p>{{ o.briefdescription }}</p>
-<p>{{ o.detaileddescription }}
-</p>
-{% endif %}
+<h1>XX</h1>
+<ul>
+{% for o in objects %}
+<li>{{ o.as_string }}, {{ o.definition }}</li>
 {% endfor %}
-{% endif %}
-{% endfor %}
-
+</ul>

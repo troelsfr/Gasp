@@ -1,4 +1,7 @@
+import re
 from docutils import nodes
+from doxygen import DoxygenNode
+
 _ = lambda x: x
 from jinja2 import Environment, PackageLoader
 
@@ -7,19 +10,15 @@ def list_to_dict(lst):
     nl = [q[1:].split(":",1) for q in lst if ":" in q ]
     return dict([(q[0],q[1].strip()) for q in nl])
 
-class DoxygenNode(nodes.General, nodes.Element):    
-    def __init__(self,  **kwargs):
-        super(DoxygenNode,self).__init__('')
-        self.__dict__.update(kwargs)
-
-    def render(self):
-        return "The render function of %s has not been overridden" % self.__class__.__name__
 
 import copy
 class reference_object:
     def __init__(self, **kwargs):
+        self.as_string = ""
         self.__dict__.update(kwargs)
 
+    def __str__(self):
+        return self.as_string
 
 class doxygen(DoxygenNode):
     def __init__(self, docname, filename, which, **kwargs):
@@ -46,12 +45,14 @@ class doxygen(DoxygenNode):
         for o in objs:
             no = reference_object(**o.attributes)
             setattr(no,"as_string", str(o))
+            setattr(no,"as_dict", o.attributes)
+
             if len(o.children) > 0: setattr(no,"children", self.create_references(o.children))
+            setattr(no,"docname", self.docname)
             refs.append(no)
         return refs
 
-    def prepare_node(self,uri,**ctx):
-        self.uri = uri
+    def prepare_node(self,**ctx):
         self.path = self.doxygen.scope_to_path(self.which)
         nodes = self.doxygen.get(self.path)
         if len(nodes) == 0:
@@ -72,7 +73,7 @@ class doxygen(DoxygenNode):
         self.context.update(ctx)
 
     def render(self): 
-        self.ref_register.set_uri(self.uri)
+        self.ref_register.set_current_doc(self.doc)
         template = self.environment.get_template(self.filename+'.html')
         return template.render(**self.context)
 
@@ -102,21 +103,30 @@ class DoxygenDirective(Directive):
         ret =  doxygen( env.docname,filename, which, **list_to_dict(self.content[2:]) )
         return [ret]
 
+
+
+
 def purge_doxygen(app, env, docname):
     pass
+
 #    env.all_doxs = [todo for todo in env.todo_all_todos
 #                          if todo['docname'] != docname]
 
 
 class reference_register:
     def __init__(self):
-        self.uri = ""
+        self.doc = None
+        self.builder = None
         self._register = {}
+        self._path_register = {}
         self._request = []
         self._production_mode = False
 
-    def set_uri(self, uri):
-        self.uri = uri
+    def set_current_doc(self, doc):
+        self.doc = doc
+
+    def set_builder(self, builder):
+        self.builder = builder
 
     def get_id(self, obj):
         i = None
@@ -131,12 +141,11 @@ class reference_register:
 
     def create_reference(self,obj):
         i = self.get_id(obj)
-        uri = "%s#%s" %(self.uri,i)
         if i in self._register and not self._production_mode:
             print "Warning: label for '%s' already exists. Skipping label creation." %i
-#            return self.get_reference(obj)
-        self._register[i] = uri
-        return "<a name=\"%s\"></a>"%i
+        self._register[i] = obj.docname
+        if hasattr(self,"path"): self._path_register[obj.path] = i
+        return "<a name=\"%s\"></a>"% i
 
     def get_reference(self,obj):
         i = self.get_id(obj)
@@ -144,10 +153,25 @@ class reference_register:
         if not self._production_mode:
             return "<a href=\"javascript:void(0);\">%s</a>"%obj.name
         elif not i in self._register:
-            print "Warning: label not defined"
-            return "<a href=\"javascript:void(0);\">%s</a>"%obj.name
+            return obj.name
         else:
-            return "<a href=\"%s\">%s</a>"%(self._register[i], obj.name)
+            uri = self.builder.get_relative_uri(self.doc, self._register[i]) 
+            return "<a href=\"%s#%s\">%s</a>"%(uri,i, obj.name)
+
+    def link_scoped_references(self,text, pat="([\w\d]+\<.*\>::)+[\w\d]+\<.+\>"):
+        pattern = re.compile(pat)
+        newtext = ""
+        for ret in pattern.finditer(text):
+            pass # TODO
+        return text
+
+    def link_doxygen_references(self,text, pat="\[\@ref:(?P<id>[\w\d\_\-]+)=(?P<name>[\w\d\_\-]+)\]"):
+        pattern = re.compile(pat)
+        newtext = ""
+        for ret in pattern.finditer(text):
+            pass # TODO
+        return text
+
 
     def get_or_create_reference(self,obj):
         pass
@@ -155,46 +179,69 @@ class reference_register:
 
 from doxtools import DoxygenDocumentation
 import glob
+DOXYGEN_DOC = None
+JINJA_ENVIRONMENT = None
+REFERENCE_REGISTER = None
+
+from concept import concept,ConceptDirective, link_concept, LinkConceptDirective
+
 def process_doxygen(app, doctree, fromdocname):
+#    print "XXXX; ", fromdocname
+    global DOXYGEN_DOC, JINJA_ENVIRONMENT, REFERENCE_REGISTER
     if app.config.doxygen_xml is None:
         raise BaseException("Please specify the path to the Doxygen XML in the conf.py using the variable 'doxygen_xml'.")
 
     env = app.builder.env
 
     testfiles = glob.glob("/home/tfr/Documents/Alps/build/docs/doxygen/xml/*.xml")
-    print "Loading Doxygen documentation ... "
-    dox = DoxygenDocumentation(testfiles)
-    print "Generating Doxygen output"
 
-    def warn(cond, msg):
-        if cond: print "WARNING:",msg
-    jenv = Environment(loader=PackageLoader('gasp', 'templates'))
+    if DOXYGEN_DOC is None:
+        print "Loading Doxygen documentation ... "
+        DOXYGEN_DOC = DoxygenDocumentation(testfiles)
+        print "Generating Doxygen output"
+    dox = DOXYGEN_DOC
 
-    reg = reference_register()
+    if JINJA_ENVIRONMENT is None:
+        JINJA_ENVIRONMENT =Environment(loader=PackageLoader('gasp', 'templates'))
+    jenv = JINJA_ENVIRONMENT
+
+    if REFERENCE_REGISTER is None:
+        REFERENCE_REGISTER = reference_register()
+        
+    reg = REFERENCE_REGISTER
+    reg.set_builder(app.builder)
     jenv.filters['ref'] = reg.get_reference
     jenv.filters['label'] = reg.create_reference
+    jenv.filters['link_refs'] = reg.link_doxygen_references
 
  #   uri = app.builder.get_relative_uri()
     for node in doctree.traverse(doxygen):
-        uri =  app.builder.get_relative_uri(
-            fromdocname, node.docname)
 
         node.ref_register = reg
         node.doxygen = dox
         node.environment = jenv
-        node.prepare_node(uri)
+        node.doc = fromdocname
+        node.prepare_node()
         node.render()
 #        node.relative_uri = uri
     reg.production_mode()
+
+
 
 def setup(app):
     app.add_config_value('doxygen_xml', None, True)
 
     app.add_node(doxygen,
                  html=(visit_doxygen_node, depart_doxygen_node))
+    app.add_node(concept,
+                 html=(visit_doxygen_node, depart_doxygen_node))
+    app.add_node(link_concept,
+                 html=(visit_doxygen_node, depart_doxygen_node))
 
 
     app.add_directive('doxygen', DoxygenDirective)
+    app.add_directive('concept', ConceptDirective)
+    app.add_directive('link-concept', LinkConceptDirective)
 
 
     app.connect('doctree-resolved', process_doxygen)

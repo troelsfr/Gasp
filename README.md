@@ -37,8 +37,7 @@ there. My sincere thanks to the author of Breathe.
 
 Improvements
 ============
-1. Add support for referenced definitions
-2. Add support for concepts
+1. Add support for concepts
 
 
 License

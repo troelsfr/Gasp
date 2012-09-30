@@ -43,7 +43,7 @@ class Node:
             if self.partial_path == lhs or lhs == "*":
                 return self._create(rhs)
         except:
-            print path
+#            print path
             raise
     
     def _create(self, path):
@@ -65,7 +65,7 @@ class Node:
             last_node = None
             first_node = None
             lst = path.split("/")
-            print lst
+#            print lst
             lst.reverse()
             for x in lst:
                 if last_node is None:
@@ -92,6 +92,14 @@ class Node:
             return app +"::"+self.partial_path
         return self.partial_path
 
+    def path(self):
+        if not self.parent is None:
+            app = self.parent.path()
+            if app.strip() == "": return self.partial_path
+            return app +"/"+self.partial_path
+        return self.partial_path
+
+
 #c1= [Node("test1"), Node("test2"), Node("test3")]
 #d = Node("",[Node("main",c1)])
 #d.get_or_create("/main/*/test5")
@@ -107,9 +115,16 @@ class DoxygenDocumentation:
         for f in files:
 #            print "Treating f", f
             self.load(f)
-
+        self._update_namespaces()
 
     def _get_text(self, subtree):
+        if subtree.nodeName == "ref":
+#            print "Found ref node"
+            if len(subtree.childNodes) == 1:
+                attr = dict([(q, self._get_text(w)) for q,w in dict(subtree.attributes).iteritems()])
+                ret = "[@ref:%s=%s]" % (attr["refid"],subtree.childNodes[0].nodeValue)
+#                print ret
+                return ret
         val = ""
         for c in subtree.childNodes:
             if not c.nodeValue is None:
@@ -207,6 +222,7 @@ class DoxygenDocumentation:
         attributes['is_member'] = True 
         attributes['is_namespace'] = False
         attributes['is_class'] = ("class" == attributes["kind"])
+
 #        if attributes['id']=='classalps_1_1numeric_1_1matrix_1a33033173ca671a1c617c210a91dd2bea':
 #            print "X", kind, attributes["kind"]
 
@@ -293,8 +309,8 @@ class DoxygenDocumentation:
         elif name == "templateparamlist":
             self._parse_template_params(subtree, self._compound_stack[-1])
             n = self._compound_stack[-1]
-            print n.attributes["path"]
-            print [x for x in n.attributes["template_parameters"]]
+#            print n.attributes["path"]
+#            print [x for x in n.attributes["template_parameters"]]
             n.attributes["template_argstring"] = ", ".join([ "%s %s" % (x["type"],x["declname"]) for x in n.attributes["template_parameters"]])
             n.attributes["definition"] = "template< %s > %s" %(n.attributes["template_argstring"], n.attributes["definition"])
 
@@ -306,10 +322,13 @@ class DoxygenDocumentation:
 
 
     def _parse_compound(self,subtree):
-        for c in subtree.childNodes:
-            t = self._get_text(subtree.attributes["kind"])
-            if t == "class":
+        t = self._get_text(subtree.attributes["kind"])
+        if t == "class":
+            for c in subtree.childNodes:
                 self._parse_compound_class(c,t)
+        elif t == "page":
+            print "Found page", self._get_text(subtree.attributes["id"])
+#            pass
             # TODO: add support for structs and files
         self._current_compound= None
 
@@ -332,6 +351,32 @@ class DoxygenDocumentation:
         self._parse_tree(d)
 
 
+    def _update_namespaces(self, child = None):
+        if child == None: child = self.docs
+        
+        if child.partial_path != "" and len(child.attributes) == 0:
+            path = child.path()
+            print path
+            scope = str(child)
+            attr = {}
+            attr['kind'] = "namespace"
+            kind = attr['kind']
+            attr['is_member'] = False
+            attr['is_namespace'] = True
+            attr['is_class'] = False
+            attr['is_type'] = False
+            attr['doxygen_file'] = self._loading_file
+            attr['parameters'] = []
+            attr['template_parameters'] = []
+            attr["path"] = path  
+            attr["name"] = path.rsplit("/",1)[1] if "/" in path else path
+            attr["definition"] = "%s %s" % (kind, scope)
+
+            child.attributes = attr
+
+        for c in child.children:
+            self._update_namespaces(c)
+
     def get(self, path):
         return self.docs.get(path)
 
@@ -342,10 +387,11 @@ if __name__ == "__main__":
     
     testfiles = glob.glob("/home/tfr/Documents/Alps/build/docs/doxygen/xml/*.xml")
     
-#    d = DoxygenDocumentation(testfiles)
-    d = DoxygenDocumentation([testfile])
+    d = DoxygenDocumentation(testfiles)
+#    d = DoxygenDocumentation([testfile])
     
-    t = d.get("/alps/numeric/*")
+    t = d.get("/alps/numeric/concepts/matrix_archetype")
+    
     print "Len = ", len(t)
     print [str(x) for x in t]
     print "-"*100
@@ -362,5 +408,10 @@ if __name__ == "__main__":
             print
         else:
             print "Is not a member"
+            print
+            print "Children"
+            for y in x.children:
+                print str(y)
+            print
         print [str(q) for q in x.children]
         print "+++"
