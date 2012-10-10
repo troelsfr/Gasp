@@ -56,7 +56,9 @@ class doxygen(DoxygenNode):
         self.path = self.doxygen.scope_to_path(self.which)
         nodes = self.doxygen.get(self.path)
         if len(nodes) == 0:
+            self.context = {}        
             print "WARNING: could not find '%s'"%self.which
+
             return ""
 
         if len(self.exclude) == 0:
@@ -73,9 +75,14 @@ class doxygen(DoxygenNode):
         self.context.update(ctx)
 
     def render(self): 
-        self.ref_register.set_current_doc(self.doc)
-        template = self.environment.get_template(self.filename+'.html')
-        return template.render(**self.context)
+        try:
+            self.ref_register.set_current_doc(self.doc)
+            template = self.environment.get_template(self.filename+'.html')
+            return template.render(**self.context)
+        except:
+            print "Filename: ", self.filename            
+            print "XML Path: ", self.XML_PATH
+            raise
 
 def visit_doxygen_node(self, node):
     x= node.render()    
@@ -193,6 +200,7 @@ def process_doxygen(app, doctree, fromdocname):
 
     env = app.builder.env
     XML_PATH = app.config.doxygen_xml
+    if not XML_PATH.endswith("/"): XML_PATH+="/"
     testfiles = glob.glob("%s*.xml"%XML_PATH)
 
     if DOXYGEN_DOC is None:
@@ -216,7 +224,7 @@ def process_doxygen(app, doctree, fromdocname):
 
  #   uri = app.builder.get_relative_uri()
     for node in doctree.traverse(doxygen):
-
+        node.XML_PATH = XML_PATH
         node.ref_register = reg
         node.doxygen = dox
         node.environment = jenv
