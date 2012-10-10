@@ -25,8 +25,8 @@ use for your project. You are rather encouraged to make your own.
 
 Quick start
 ===========
-1. Put Gasp somewhere in your Python path.
-2. Add Gasp to your Sphinx extension list.
+1. Put Gasp/gasp somewhere in your Python path.
+2. Add 'gasp' to your Sphinx extension list.
 3. Add "doxygen_xml" to the Sphinx configuration, and add the set this variable to the location where you have your Doxygen XML files.
 4. Start using it.
 
@@ -114,8 +114,9 @@ which is then included into the RST file as::
     .. doxygen: concept/synopsis
        concepts::*
 
-    This will create a concept synopsis for
-    ``concepts::foo_concept`` and ``concepts::bar``. If 
+This will create a concept synopsis for
+``concepts::foo_concept`` and ``concepts::bar``. (TODO: write the
+synopsis template)
 
 I don't like Gasp
 -----------------
