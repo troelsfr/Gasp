@@ -100,30 +100,26 @@ class Node:
         return self.partial_path
 
 
-#c1= [Node("test1"), Node("test2"), Node("test3")]
-#d = Node("",[Node("main",c1)])
-#d.get_or_create("/main/*/test5")
-# print [str(x) for x in d.get("/*/*/*")]
 import sys
 class DoxygenDocumentation:
 
     def __init__(self,files = []):
+
         self._compound_stack = []
         self.docs = Node("")
         self._current_compound= None
         self._loading_file = None
         for f in files:
-#            print "Treating f", f
             self.load(f)
         self._update_namespaces()
+        
+
 
     def _get_text(self, subtree):
         if subtree.nodeName == "ref":
-#            print "Found ref node"
             if len(subtree.childNodes) == 1:
                 attr = dict([(q, self._get_text(w)) for q,w in dict(subtree.attributes).iteritems()])
                 ret = "[@ref:%s=%s]" % (attr["refid"],subtree.childNodes[0].nodeValue)
-#                print ret
                 return ret
         val = ""
         for c in subtree.childNodes:
@@ -157,7 +153,6 @@ class DoxygenDocumentation:
             lasts=ns
             i+=1
         nstr+=np[pointer:]
-#        print txt,"->", np, "->", nstr
         return nstr
 
     def _parse_enumvalue(self, subtree, path):
@@ -211,6 +206,25 @@ class DoxygenDocumentation:
                 lst.append(self._template_param(c))
         
         node.attributes['template_parameters'] += lst
+
+    def _parse_search_for_tag(self,tag, subtree):
+        return []
+        # TODO: Implement
+
+    def _parse_search_for_xrefsections(self, subtree):
+        ret = []
+        name = None
+        description=None
+        for c in subtree.childNodes:
+            if c.nodeName == "xrefsect":
+                ret += self._parse_search_for_xrefsections(c)
+            elif c.nodeName == "xreftitle":                
+                name = self._get_text(c)
+            elif c.nodeName == "xrefdescription":                
+                description = self._get_text(c)
+        ## TODO: extract version etc.
+        if not name is None: ret.append( (name, description) )
+        return ret
         
     def _parse_memberdef(self, subtree):
         parse_children = False
@@ -220,11 +234,10 @@ class DoxygenDocumentation:
         attributes["is_type"] = ("typedef" == attributes["kind"])
         attributes["is_enum"] = ("enum" == attributes["kind"])
         attributes['is_member'] = True 
+        attributes['is_function'] = (attributes["kind"] == "function")
         attributes['is_namespace'] = False
         attributes['is_class'] = ("class" == attributes["kind"])
-
-#        if attributes['id']=='classalps_1_1numeric_1_1matrix_1a33033173ca671a1c617c210a91dd2bea':
-#            print "X", kind, attributes["kind"]
+#        attributes['is_class'] = ("class" == attributes["kind"])
 
 
         path = None
@@ -272,6 +285,20 @@ class DoxygenDocumentation:
                     self._parse_enumvalue(c,path)
                 else:
                     raise BaseException("Could not determine path")
+            elif n2=="detaileddescription":
+                for c2 in c.childNodes:
+                    if c2.nodeName == "para":
+                        xrefs = self._parse_search_for_xrefsections(c2)
+                        for name, desc in xrefs:
+                            id = name.lower().replace(" ", "").replace("_","")
+                            #
+                            if id not in attributes:
+                                attributes[id] = [desc]
+                            else:
+                                attributes[id].append(desc)
+#                        if blah:
+#                            print "XREFS:"
+#                            print blah
 
         if path is None:
             if "name" in attributes:
@@ -286,14 +313,15 @@ class DoxygenDocumentation:
             n.attributes.update(attributes)
 
 
-    def _parse_compound_class(self, subtree, kind):
+    def _parse_compound_members(self, subtree, kind):
         name = subtree.nodeName.strip()
         if name == "compoundname":
             scope = self._get_text(subtree)
             path = self.scope_to_path(scope)
             node = self.docs.get_or_create(path)[0]
             node.attributes['is_member'] = False
-            node.attributes['is_namespace'] = False
+            node.attributes['is_function'] =False
+            node.attributes['is_namespace'] = (kind=="namespace")
             node.attributes['is_class'] = (kind=="class")
             node.attributes['is_type'] = True
             node.attributes['doxygen_file'] = self._loading_file
@@ -318,17 +346,29 @@ class DoxygenDocumentation:
            self._parse_memberdef(subtree)
         else:
             for c in subtree.childNodes:
-                self._parse_compound_class(c,kind)
+                self._parse_compound_members(c,kind)
+
+
+
+    def _parse_search_for_anchors(self, subtree):
+        if subtree.nodeName=="anchor": return [self._get_text(subtree.attributes["id"])]
+        ret = []
+        for c in subtree.childNodes:
+            ret += self._parse_search_for_anchors(c)            
+        return ret
+
 
 
     def _parse_compound(self,subtree):
         t = self._get_text(subtree.attributes["kind"])
         if t == "class":
             for c in subtree.childNodes:
-                self._parse_compound_class(c,t)
-        elif t == "page":
-            print "Found page", self._get_text(subtree.attributes["id"])
-#            pass
+                self._parse_compound_members(c,t)
+        elif t == "namespace":
+            for c in subtree.childNodes:
+                self._parse_compound_members(c,t)
+        elif t == "namespace":
+            pass
             # TODO: add support for structs and files
         self._current_compound= None
 
@@ -362,6 +402,7 @@ class DoxygenDocumentation:
             attr['kind'] = "namespace"
             kind = attr['kind']
             attr['is_member'] = False
+            attr['is_function'] =False
             attr['is_namespace'] = True
             attr['is_class'] = False
             attr['is_type'] = False
@@ -390,7 +431,7 @@ if __name__ == "__main__":
     d = DoxygenDocumentation(testfiles)
 #    d = DoxygenDocumentation([testfile])
     
-    t = d.get("/alps/numeric/concepts/matrix_archetype")
+    t = d.get("/alps/numeric/concepts/*")
     
     print "Len = ", len(t)
     print [str(x) for x in t]

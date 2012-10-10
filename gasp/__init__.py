@@ -192,8 +192,8 @@ def process_doxygen(app, doctree, fromdocname):
         raise BaseException("Please specify the path to the Doxygen XML in the conf.py using the variable 'doxygen_xml'.")
 
     env = app.builder.env
-
-    testfiles = glob.glob("/home/tfr/Documents/Alps/build/docs/doxygen/xml/*.xml")
+    XML_PATH = app.config.doxygen_xml
+    testfiles = glob.glob("%s*.xml"%XML_PATH)
 
     if DOXYGEN_DOC is None:
         print "Loading Doxygen documentation ... "
