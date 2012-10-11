@@ -154,16 +154,18 @@ class reference_register:
         if hasattr(self,"path"): self._path_register[obj.path] = i
         return "<a name=\"%s\"></a>"% i
 
-    def get_reference(self,obj):
+    def get_reference(self,obj, text = None):
         i = self.get_id(obj)
+        if text is None: 
+            text = obj.name
         if not i in self._request: self._request.append(i)
         if not self._production_mode:
-            return "<a href=\"javascript:void(0);\">%s</a>"%obj.name
+            return "<a href=\"javascript:void(0);\">%s</a>"%text
         elif not i in self._register:
-            return obj.name
+            return text
         else:
             uri = self.builder.get_relative_uri(self.doc, self._register[i]) 
-            return "<a href=\"%s#%s\">%s</a>"%(uri,i, obj.name)
+            return "<a href=\"%s#%s\">%s</a>"%(uri,i, text)
 
     def link_scoped_references(self,text, pat="([\w\d]+\<.*\>::)+[\w\d]+\<.+\>"):
         pattern = re.compile(pat)
@@ -189,12 +191,40 @@ import glob
 DOXYGEN_DOC = None
 JINJA_ENVIRONMENT = None
 REFERENCE_REGISTER = None
+CONCEPT_REGISTER = None
 
 from concept import concept,ConceptDirective, link_concept, LinkConceptDirective
 
+class concept_register:
+
+    def __init__(self):
+        self.scopes = {}
+
+    def register_type(self, concept, name, type):
+        if not concept in self.scopes:
+            self.scopes[concept] ={}
+        self.scopes[concept][name] = type
+
+    def get_instance_name(self,obj, ifnone = "a"):
+        # TODO: implement
+        return ifnone
+
+    def simplify_repr(self,name, obj):
+        obj = self.get_instance_name(obj)
+        ## TODO: generalise
+        remove = [("operator()", obj, True),  ("operator+=", obj+"+=",False)]
+        has_paran = True
+        for bef,aft,par in remove:
+            if bef in name:
+                name = name.replace(bef, aft)
+                has_paran = par
+                break
+            
+        return {"name":name, "has_paranthesis": has_paran}
+
 def process_doxygen(app, doctree, fromdocname):
 #    print "XXXX; ", fromdocname
-    global DOXYGEN_DOC, JINJA_ENVIRONMENT, REFERENCE_REGISTER
+    global DOXYGEN_DOC, JINJA_ENVIRONMENT, REFERENCE_REGISTER, CONCEPT_REGISTER
     if app.config.doxygen_xml is None:
         raise BaseException("Please specify the path to the Doxygen XML in the conf.py using the variable 'doxygen_xml'.")
 
@@ -215,9 +245,24 @@ def process_doxygen(app, doctree, fromdocname):
 
     if REFERENCE_REGISTER is None:
         REFERENCE_REGISTER = reference_register()
+
+    if CONCEPT_REGISTER is None:
+        CONCEPT_REGISTER = concept_register()
+
         
     reg = REFERENCE_REGISTER
     reg.set_builder(app.builder)
+
+
+    def lst(obj):
+        s = ""
+        for o in dir(obj):
+            s+="<li>%s</li>" % o
+        return "<ul>%s</ul>" % s
+
+    jenv.filters['get_abstract_object_instance'] = CONCEPT_REGISTER.get_instance_name
+    jenv.globals['simplify_member_representation'] = CONCEPT_REGISTER.simplify_repr
+    jenv.filters['list_contents'] = lst
     jenv.filters['ref'] = reg.get_reference
     jenv.filters['label'] = reg.create_reference
     jenv.filters['link_refs'] = reg.link_doxygen_references

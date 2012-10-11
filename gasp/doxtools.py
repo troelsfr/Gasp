@@ -116,7 +116,9 @@ class DoxygenDocumentation:
 
 
     def _get_text(self, subtree):
-        if subtree.nodeName == "ref":
+        if subtree.nodeName == "#text":
+            return subtree.nodeValue
+        elif subtree.nodeName == "ref":
             if len(subtree.childNodes) == 1:
                 attr = dict([(q, self._get_text(w)) for q,w in dict(subtree.attributes).iteritems()])
                 ret = "[@ref:%s=%s]" % (attr["refid"],subtree.childNodes[0].nodeValue)
@@ -214,16 +216,34 @@ class DoxygenDocumentation:
     def _parse_search_for_xrefsections(self, subtree):
         ret = []
         name = None
-        description=None
+        objects = []
         for c in subtree.childNodes:
             if c.nodeName == "xrefsect":
                 ret += self._parse_search_for_xrefsections(c)
             elif c.nodeName == "xreftitle":                
                 name = self._get_text(c)
-            elif c.nodeName == "xrefdescription":                
-                description = self._get_text(c)
-        ## TODO: extract version etc.
-        if not name is None: ret.append( (name, description) )
+            elif c.nodeName == "xrefdescription":
+                contents = ""
+
+                for para  in c.childNodes:
+                    if not para.nodeName == "para": continue
+                    desc = ""
+                    attrs = {}
+                    for c2 in para.childNodes:
+                        if  c2.nodeName == "#text":
+                            desc += self._get_text(c2)
+                        else:
+                            attrs[c2.nodeName] = self._get_text(c2)
+                                
+                    if attrs:
+                        attrs["description"] = desc
+                        contents = attrs
+                    else:
+                        contents = desc
+                    objects.append(contents)
+
+        if not name is None: 
+            for o in objects: ret.append( (name, o) )
         return ret
         
     def _parse_memberdef(self, subtree):
@@ -292,6 +312,7 @@ class DoxygenDocumentation:
                         for name, desc in xrefs:
                             id = name.lower().replace(" ", "").replace("_","")
                             #
+                            print id, desc
                             if id not in attributes:
                                 attributes[id] = [desc]
                             else:
