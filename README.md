@@ -35,7 +35,7 @@ Using Gasp
 ==========
 Gasp provides two RST tags::
 
-    .. doxygen: [template_name]
+    .. doxygen:: [template_name]
        [namespace_selector]
        [option1]
        [option2]
@@ -47,7 +47,7 @@ API documentation
 To add a class synopsis of the public members to 
 your documentation write::
 
-    .. doxygen: class/synopsis
+    .. doxygen:: class/synopsis
        foo::bar::class
        :public:
 
@@ -55,14 +55,14 @@ If you also wish to include members which has no brief
 documentation string add the option ":all:". Likewise, private synopsis
 page is created as::
 
-    .. doxygen: class/synopsis
+    .. doxygen:: class/synopsis
        foo::bar::class
        :private:
 
 
 In order include detailed documentation, write::
 
-    .. doxygen: class/members
+    .. doxygen:: class/members
        foo::bar::class
        :primary:
        :public:
@@ -111,7 +111,7 @@ documented as::
 
 which is then included into the RST file as::
 
-    .. doxygen: concept/synopsis
+    .. doxygen:: concept/synopsis
        concepts::*
 
 This will create a concept synopsis for

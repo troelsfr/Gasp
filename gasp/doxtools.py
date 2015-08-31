@@ -265,7 +265,12 @@ class DoxygenDocumentation:
             n2 = c.nodeName.strip()
             if n2.startswith("#"): continue
             txt = self._get_text(c).strip() 
+
+            ## Fix for PHP problem
+            if n2 == "definition" and "\\" in txt: txt = txt.replace("\\", "::") 
+
             attributes[n2] = txt ## TODO: add support for references
+
             if n2 == "definition": 
                 t = attributes["type"]
 
@@ -417,7 +422,7 @@ class DoxygenDocumentation:
         
         if child.partial_path != "" and len(child.attributes) == 0:
             path = child.path()
-            print path
+            print "Adding", path, "from Doxygen XML"
             scope = str(child)
             attr = {}
             attr['kind'] = "namespace"
@@ -445,14 +450,13 @@ class DoxygenDocumentation:
 
 if __name__ == "__main__":
     import glob
-    testfile = "/home/tfr/Documents/Alps/build/docs/doxygen/xml/classalps_1_1numeric_1_1matrix.xml"
     
-    testfiles = glob.glob("/home/tfr/Documents/Alps/build/docs/doxygen/xml/*.xml")
+    testfiles = glob.glob("/home/tfr/Documents/Temp/gasp-test/xml/*.xml")
     
     d = DoxygenDocumentation(testfiles)
-#    d = DoxygenDocumentation([testfile])
-    
-    t = d.get("/alps/numeric/concepts/*")
+    #    d = DoxygenDocumentation([testfile])
+    print "Testing"
+    t = d.get("/Test/Dog/*")
     
     print "Len = ", len(t)
     print [str(x) for x in t]
