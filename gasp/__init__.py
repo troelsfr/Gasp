@@ -54,6 +54,11 @@ class doxygen(DoxygenNode):
 
     def prepare_node(self,**ctx):
         self.path = self.doxygen.scope_to_path(self.which)
+        
+        #  Allow Class without namespace (like "::MyClass")
+        if self.path[:2] == '//':
+            self.path = self.path[1:]
+        
         nodes = self.doxygen.get(self.path)
         if len(nodes) == 0:
             self.context = {}        
