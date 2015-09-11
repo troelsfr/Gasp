@@ -4,7 +4,8 @@
 
 {% for o in class.children %}
 {# if o.is_member #}
-{% if (public and o.prot=="public") or (private and o.prot=="private") %}
+
+{% if (protected and o.prot=="protected") or (public and o.prot=="public") or (private and o.prot=="private") %}
 {% if o.briefdescription or all %}
 {{ o|label }}
 <h3>{{o.name}} ({{o.prot}})</h3>
