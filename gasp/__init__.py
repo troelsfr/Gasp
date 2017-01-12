@@ -3,7 +3,7 @@ from docutils import nodes
 from doxygen import DoxygenNode
 
 _ = lambda x: x
-from jinja2 import Environment, PackageLoader
+from jinja2 import Environment, PackageLoader, FileSystemLoader
 
 
 def list_to_dict(lst):
@@ -234,10 +234,10 @@ def process_doxygen(app, doctree, fromdocname):
         raise BaseException("Please specify the path to the Doxygen XML in the conf.py using the variable 'doxygen_xml'.")
 
     env = app.builder.env
-    XML_PATH = app.config.doxygen_xml
+    XML_PATH = app.config.doxygen_xml    
     if not XML_PATH.endswith("/"): XML_PATH+="/"
-    testfiles = glob.glob("%s*.xml"%XML_PATH)
-
+    testfiles = glob.glob("%s*.xml"%XML_PATH)    
+    
     if DOXYGEN_DOC is None:
         print "Loading Doxygen documentation ... "
         DOXYGEN_DOC = DoxygenDocumentation(testfiles)
@@ -245,7 +245,12 @@ def process_doxygen(app, doctree, fromdocname):
     dox = DOXYGEN_DOC
 
     if JINJA_ENVIRONMENT is None:
-        JINJA_ENVIRONMENT =Environment(loader=PackageLoader('gasp', 'templates'))
+
+        if app.config.doxygen_templates is None:
+            JINJA_ENVIRONMENT =Environment(loader=PackageLoader('gasp', 'templates'))
+        else:
+            JINJA_ENVIRONMENT =Environment(loader=FileSystemLoader(app.config.doxygen_templates))
+            
     jenv = JINJA_ENVIRONMENT
 
     if REFERENCE_REGISTER is None:
@@ -288,6 +293,7 @@ def process_doxygen(app, doctree, fromdocname):
 
 def setup(app):
     app.add_config_value('doxygen_xml', None, True)
+    app.add_config_value('doxygen_templates', None, True)    
 
     app.add_node(doxygen,
                  html=(visit_doxygen_node, depart_doxygen_node))

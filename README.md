@@ -30,6 +30,11 @@ Quick start
 3. Add "doxygen_xml" to the Sphinx configuration, and add the set this variable to the location where you have your Doxygen XML files.
 4. Start using it.
 
+Installing
+==========
+To install write following::
+
+    pip install git+https://github.com/troelsfr/Gasp.git
 
 Using Gasp
 ==========
@@ -41,6 +46,18 @@ Gasp provides two RST tags::
        [option2]
 
 and the reference tag ``dox-ref`` (TODO, still needs to be written (I think) ).
+
+Sphinx configuration
+====================
+Here is an example Sphinx configuration::
+
+    THIS_DIR = os.path.dirname(__file__)
+    doxygen_xml = "_doxygen/xml"
+    doxygen_templates = [os.path.join(THIS_DIR, "..", "_doxygen_templates")]
+
+This defines where the Doxygen XML can be found and defines place where custom
+templates can be found. If ``doxygen_templates`` is not defined, then the standard templates
+provided with Gasp is used.
 
 API documentation
 -----------------

@@ -9,4 +9,5 @@ setup(name='Gasp',
       author_email='troels.roennow@gmail.com',
       url='https://github.com/troelsfr/Gasp',
       packages=['gasp'],
+      package_data={'gasp': ['templates/*/*']},      
      )
